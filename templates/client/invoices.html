@@ -1,0 +1,57 @@
+{% extends "client/base.html" %}
+
+{% block title %}Mes factures — Electruc{% endblock %}
+
+{% block client_content %}
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+    <h3 class="h5 mb-0">Mes factures</h3>
+    <span class="text-muted">Dernière facture mise en évidence</span>
+  </div>
+  {% if invoices %}
+    {% with latest_invoice=invoices.0 %}
+      <div class="alert alert-light border" role="alert">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <div>
+            <strong>Dernière facture :</strong> {{ latest_invoice.reference }} — {{ latest_invoice.issue_date }}
+          </div>
+          <a class="btn btn-primary" href="{% url 'invoice_pdf_download' latest_invoice.id %}">
+            Télécharger (PDF)
+          </a>
+        </div>
+      </div>
+    {% endwith %}
+
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle">
+      <thead>
+        <tr>
+          <th>Référence</th>
+          <th>Période</th>
+          <th>Date d’émission</th>
+          <th>Montant</th>
+          <th>Statut</th>
+          <th>PDF</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for invoice in invoices %}
+          <tr>
+            <td>{{ invoice.reference }}</td>
+            <td>{{ invoice.period_start|date:"d/m/Y" }} → {{ invoice.period_end|date:"d/m/Y" }}</td>
+            <td>{{ invoice.issue_date|date:"d/m/Y" }}</td>
+            <td>{{ invoice.amount_eur }} €</td>
+            <td>{{ invoice.get_status_display }}</td>
+            <td>
+              <a class="btn btn-outline-primary btn-sm" href="{% url 'invoice_pdf_download' invoice.id %}">
+                Télécharger (PDF)
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>Aucune facture disponible pour le moment.</p>
+  {% endif %}
+{% endblock %}

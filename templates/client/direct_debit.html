@@ -1,0 +1,60 @@
+{% extends "client/base.html" %}
+
+{% block title %}Domiciliation bancaire — Electruc{% endblock %}
+
+{% block client_content %}
+  <h3 class="h5">Domiciliation bancaire</h3>
+  <p class="text-muted">Envoyez un document pour activer la domiciliation bancaire.</p>
+  <p class="mb-3">
+    <a class="btn btn-outline-secondary" href="{% url 'direct_debit_template_download' %}">
+      Télécharger le formulaire de domiciliation
+    </a>
+  </p>
+
+  <form method="post" enctype="multipart/form-data" class="border rounded-3 p-3 bg-light">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <p class="small text-muted mb-2">
+      Formats acceptés : PDF, PNG, JPG/JPEG, DOC, DOCX — taille max 5 Mo.
+    </p>
+    <button type="submit" class="btn btn-primary">Envoyer le document</button>
+  </form>
+
+  <h4 class="h6 mt-4">Historique des demandes</h4>
+  {% if history %}
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Statut</th>
+          <th>Document</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in history %}
+          <tr>
+            <td>{{ item.created_at|date:"d/m/Y" }}</td>
+            <td>
+              {% if item.status == "pending" %}
+                <span class="badge text-bg-warning">En attente</span>
+              {% elif item.status == "active" %}
+                <span class="badge text-bg-success">Active</span>
+              {% else %}
+                <span class="badge text-bg-danger">Refusée</span>
+              {% endif %}
+            </td>
+            <td>
+              <a class="btn btn-outline-secondary btn-sm" href="{% url 'domiciliation_document_download' item.id %}">
+                Télécharger
+              </a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>Aucune demande pour le moment.</p>
+  {% endif %}
+{% endblock %}
