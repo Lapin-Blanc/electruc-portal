@@ -187,8 +187,10 @@ class CustomerProfile(models.Model):
     billing_address_postal_code = models.CharField(max_length=10, blank=True)
     billing_address_city = models.CharField(max_length=80, blank=True)
     phone = models.CharField(max_length=30, blank=True)
+    meter_serial = models.CharField(max_length=30, blank=True)
     preferred_contact = models.CharField(max_length=10, choices=CONTACT_CHOICES, default=CONTACT_EMAIL)
     language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES, default=LANG_FR)
+    notes_admin = models.TextField(blank=True)
 
     def __str__(self) -> str:
         return f"{self.customer_ref}"

@@ -1,0 +1,11 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <h1>Importer des clients (CSV)</h1>
+  <p>Le fichier doit contenir les colonnes du modèle fourni.</p>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="default">Importer</button>
+  </form>
+{% endblock %}
