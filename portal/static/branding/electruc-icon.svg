@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Electruc icon">
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="#F4F6F8" stroke="#D9DEE6" stroke-width="8"/>
+  <path d="M292 88 L176 256 H264 L220 424 L356 208 H268 L312 88 Z"
+        fill="#6FCF97" stroke="#243447" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M236 256 C250 270, 262 270, 276 256" fill="none" stroke="#243447" stroke-width="18" stroke-linecap="round"/>
+</svg>

@@ -5,8 +5,22 @@ from django.shortcuts import get_object_or_404, render
 from django.contrib import messages
 from django.contrib.staticfiles import finders
 
-from .forms import ContactForm, SupportRequestForm, DomiciliationForm
-from .models import Attachment, Domiciliation, Invoice, MeterReading, SupportRequest
+from .forms import (
+    ContactForm,
+    DomiciliationForm,
+    MeterReadingForm,
+    ProfileForm,
+    SupportRequestForm,
+)
+from .models import (
+    Attachment,
+    Contract,
+    CustomerProfile,
+    Domiciliation,
+    Invoice,
+    MeterReading,
+    SupportRequest,
+)
 
 from io import BytesIO
 from decimal import Decimal
@@ -54,13 +68,47 @@ def client_dashboard(request):
 @login_required
 def client_profile(request):
     """Client profile page (protected)."""
-    return render(request, "client/profile.html")
+    profile, _ = CustomerProfile.objects.get_or_create(
+        user=request.user,
+        defaults={
+            "customer_ref": f"CLI-{request.user.id:05d}",
+            "ean": f"54{request.user.id:016d}",
+            "supply_address_street": "Rue de la Démo",
+            "supply_address_number": "1",
+            "supply_address_postal_code": "1000",
+            "supply_address_city": "Bruxelles",
+        },
+    )
+
+    if request.method == "POST":
+        form = ProfileForm(request.POST, instance=profile, user=request.user)
+        if form.is_valid():
+            updated_profile = form.save(commit=False)
+            updated_profile.save()
+            if form.cleaned_data.get("email") is not None:
+                request.user.email = form.cleaned_data["email"]
+                request.user.save(update_fields=["email"])
+            messages.success(request, "Vos coordonnées ont été mises à jour.")
+    else:
+        form = ProfileForm(instance=profile, user=request.user)
+
+    return render(
+        request,
+        "client/profile.html",
+        {"profile": profile, "form": form},
+    )
 
 
 @login_required
 def client_contract(request):
     """Client contract page (protected)."""
-    return render(request, "client/contract.html")
+    contract = Contract.objects.filter(user=request.user).order_by("-start_date").first()
+    profile = CustomerProfile.objects.filter(user=request.user).first()
+    return render(
+        request,
+        "client/contract.html",
+        {"contract": contract, "profile": profile},
+    )
 
 
 @login_required
@@ -73,8 +121,30 @@ def client_invoices(request):
 @login_required
 def client_readings(request):
     """Client meter readings page (protected)."""
+    last_validated = (
+        MeterReading.objects.filter(user=request.user, status=MeterReading.STATUS_VALIDATED)
+        .order_by("-reading_date")
+        .first()
+    )
+
+    if request.method == "POST":
+        form = MeterReadingForm(request.POST, last_validated=last_validated)
+        if form.is_valid():
+            reading = form.save(commit=False)
+            reading.user = request.user
+            reading.status = MeterReading.STATUS_SUBMITTED
+            reading.save()
+            messages.success(request, "Votre relevé a été envoyé pour validation.")
+            form = MeterReadingForm(last_validated=last_validated)
+    else:
+        form = MeterReadingForm(last_validated=last_validated)
+
     readings = MeterReading.objects.filter(user=request.user).order_by("-reading_date")
-    return render(request, "client/readings.html", {"readings": readings})
+    return render(
+        request,
+        "client/readings.html",
+        {"readings": readings, "form": form, "last_validated": last_validated},
+    )
 
 
 @login_required
@@ -233,3 +303,73 @@ def direct_debit_template_download(request):
         as_attachment=True,
         filename="domiciliation_electruc.docx",
     )
+
+
+@login_required
+def cgv_download(request):
+    """Download the static CGV PDF."""
+    cgv_path = finders.find("docs/cgv_electruc_v2026_01.pdf")
+    if not cgv_path:
+        raise Http404("CGV non disponibles.")
+    return FileResponse(
+        open(cgv_path, "rb"),
+        as_attachment=True,
+        filename="cgv_electruc_v2026_01.pdf",
+    )
+
+
+@login_required
+def contract_pdf_download(request):
+    """Generate a contract PDF on the fly for the logged-in user."""
+    contract = Contract.objects.filter(user=request.user).order_by("-start_date").first()
+    if not contract:
+        raise Http404("Contrat non disponible.")
+    profile = CustomerProfile.objects.filter(user=request.user).first()
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    y = height - 20 * mm
+
+    logo_path = finders.find("branding/electruc-logo.png")
+    if logo_path:
+        pdf.drawImage(logo_path, 20 * mm, y - 12 * mm, width=40 * mm, height=12 * mm, preserveAspectRatio=True)
+    else:
+        pdf.setFont("Helvetica-Bold", 16)
+        pdf.drawString(20 * mm, y, "Electruc")
+
+    y -= 20 * mm
+    pdf.setFont("Helvetica", 10)
+    client_name = request.user.get_full_name() or request.user.username
+    pdf.drawString(20 * mm, y, f"Client: {client_name}")
+    y -= 6 * mm
+    if request.user.email:
+        pdf.drawString(20 * mm, y, f"E-mail: {request.user.email}")
+
+    y -= 12 * mm
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(20 * mm, y, "Contrat d'énergie — Résumé")
+    y -= 6 * mm
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(20 * mm, y, f"Référence contrat: {contract.reference}")
+    y -= 6 * mm
+    pdf.drawString(20 * mm, y, f"Offre: {contract.plan_name}")
+    y -= 6 * mm
+    pdf.drawString(20 * mm, y, f"Date de début: {contract.start_date}")
+    y -= 6 * mm
+    pdf.drawString(20 * mm, y, f"Statut: {contract.get_status_display()}")
+    y -= 6 * mm
+    pdf.drawString(20 * mm, y, f"Adresse de fourniture: {contract.supply_address}")
+
+    if profile:
+        y -= 6 * mm
+        pdf.drawString(20 * mm, y, f"EAN: {profile.ean}")
+
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(20 * mm, 15 * mm, "Document de démonstration — Electruc Portal.")
+    pdf.showPage()
+    pdf.save()
+
+    response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename=\"contrat-{contract.reference}.pdf\"'
+    return response

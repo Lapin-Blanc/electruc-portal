@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Connexion — Electruc{% endblock %}
+
+{% block content %}
+  <h2 class="h4 mb-3">Espace client</h2>
+  <p class="mb-3">Veuillez vous identifier pour accéder à votre espace client.</p>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Se connecter</button>
+  </form>
+{% endblock %}

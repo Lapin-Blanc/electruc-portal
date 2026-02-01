@@ -1,0 +1,66 @@
+{% extends "client/base.html" %}
+
+{% block title %}Mes demandes — Electruc{% endblock %}
+
+{% block client_content %}
+  <h3 class="h5">Mes demandes</h3>
+
+  <section>
+    <h4 class="h6">Nouvelle demande</h4>
+    <p class="text-muted mb-2">Expliquez votre demande de façon simple. Une réponse vous sera apportée dans l’espace client.</p>
+    <form method="post" enctype="multipart/form-data" class="border rounded-3 p-3 bg-light">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit" class="btn btn-primary">Envoyer la demande</button>
+    </form>
+  </section>
+
+  {% if support_requests %}
+    <div class="table-responsive mt-4">
+      <table class="table table-bordered align-middle">
+      <thead>
+        <tr>
+          <th>Objet</th>
+          <th>Date</th>
+          <th>Statut</th>
+          <th>Pièces jointes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in support_requests %}
+          <tr>
+            <td>{{ item.subject }}</td>
+            <td>{{ item.created_at|date:"d/m/Y" }}</td>
+            <td>
+              {% if item.status == "open" %}
+                <span class="badge text-bg-warning">Ouverte</span>
+              {% elif item.status == "in_progress" %}
+                <span class="badge text-bg-info">En cours</span>
+              {% else %}
+                <span class="badge text-bg-success">Clôturée</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if item.attachments.all %}
+                <ul>
+                  {% for attachment in item.attachments.all %}
+                    <li>
+                      <a class="btn btn-outline-secondary btn-sm" href="{% url 'attachment_download' attachment.id %}">
+                        Télécharger
+                      </a>
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>Aucune demande enregistrée pour le moment.</p>
+  {% endif %}
+{% endblock %}

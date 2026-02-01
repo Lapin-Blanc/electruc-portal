@@ -10,6 +10,16 @@ urlpatterns = [
     path("espace-client/", views.client_dashboard, name="client_dashboard"),
     path("espace-client/profil/", views.client_profile, name="client_profile"),
     path("espace-client/contrat/", views.client_contract, name="client_contract"),
+    path(
+        "espace-client/contrat/pdf/",
+        views.contract_pdf_download,
+        name="contract_pdf_download",
+    ),
+    path(
+        "espace-client/contrat/cgv/",
+        views.cgv_download,
+        name="cgv_download",
+    ),
     path("espace-client/factures/", views.client_invoices, name="client_invoices"),
     path(
         "espace-client/factures/<int:invoice_id>/pdf/",

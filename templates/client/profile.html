@@ -1,0 +1,27 @@
+{% extends "client/base.html" %}
+
+{% block title %}Mon profil — Electruc{% endblock %}
+
+{% block client_content %}
+  <h3 class="h5">Mon profil</h3>
+
+  <div class="border rounded-3 p-3 bg-light mb-4">
+    <h4 class="h6">Informations liées au compteur (non modifiables)</h4>
+    <p class="mb-1"><strong>Référence client :</strong> {{ profile.customer_ref }}</p>
+    <p class="mb-1"><strong>EAN :</strong> {{ profile.ean }}</p>
+    <p class="mb-0">
+      <strong>Adresse de fourniture :</strong>
+      {{ profile.supply_address_street }} {{ profile.supply_address_number }},
+      {{ profile.supply_address_postal_code }} {{ profile.supply_address_city }}
+    </p>
+  </div>
+
+  <div class="border rounded-3 p-3 bg-light">
+    <h4 class="h6">Coordonnées modifiables</h4>
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit" class="btn btn-primary">Enregistrer</button>
+    </form>
+  </div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Espace client — Electruc{% endblock %}
+
+{% block content %}
+  <section class="bg-light border rounded-3 p-3 mb-4">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <h2 class="h4 mb-1">Espace client</h2>
+        <p class="mb-0">
+          Connecté en tant que
+          <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+        </p>
+      </div>
+      <span class="badge text-bg-secondary px-3 py-2">Accès sécurisé</span>
+    </div>
+  </section>
+
+  <ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+      <a class="nav-link fw-semibold {% if request.resolver_match.url_name == 'client_dashboard' %}active{% endif %}" href="{% url 'client_dashboard' %}">Tableau de bord</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link fw-semibold {% if request.resolver_match.url_name == 'client_profile' %}active{% endif %}" href="{% url 'client_profile' %}">Mon profil</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link fw-semibold {% if request.resolver_match.url_name == 'client_contract' %}active{% endif %}" href="{% url 'client_contract' %}">Mon contrat</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link fw-semibold {% if request.resolver_match.url_name == 'client_invoices' %}active{% endif %}" href="{% url 'client_invoices' %}">Mes factures</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link fw-semibold {% if request.resolver_match.url_name == 'client_readings' %}active{% endif %}" href="{% url 'client_readings' %}">Mes relevés</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link fw-semibold {% if request.resolver_match.url_name == 'client_requests' %}active{% endif %}" href="{% url 'client_requests' %}">Mes demandes</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link fw-semibold {% if request.resolver_match.url_name == 'client_direct_debit' %}active{% endif %}" href="{% url 'client_direct_debit' %}">Domiciliation bancaire</a>
+    </li>
+  </ul>
+
+  <section>
+    {% block client_content %}{% endblock %}
+  </section>
+{% endblock %}

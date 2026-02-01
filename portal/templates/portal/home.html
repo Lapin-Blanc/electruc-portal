@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Accueil — Electruc{% endblock %}
+
+{% block content %}
+  <h2 class="h4 mb-3">Bienvenue sur Electruc Portal</h2>
+  <p class="mb-3">Portail client institutionnel pour la gestion de vos services d’énergie.</p>
+  <p class="mb-0">
+    <a class="btn btn-primary" href="{% url 'client_dashboard' %}">Accéder à l’espace client</a>
+  </p>
+{% endblock %}

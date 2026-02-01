@@ -1,0 +1,129 @@
+:root{
+  --electruc-accent: #6FCF97;
+  --electruc-ink: #243447;
+  --electruc-bg: #F4F6F8;
+  --electruc-border: #D9DEE6;
+  --electruc-text: #1F2937;
+}
+
+html, body { height: 100%; }
+body{
+  color: var(--electruc-text);
+  background: var(--electruc-bg);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+a{ color: var(--electruc-ink); text-decoration: none; }
+a:hover{ color: var(--electruc-accent); text-decoration: underline; }
+
+.electruc-topbar{
+  background: #ffffff;
+  border-bottom: 1px solid var(--electruc-border);
+}
+.electruc-topbar .electruc-container{
+  background: linear-gradient(180deg, #ffffff 0%, #f7faf9 100%);
+  border-radius: 16px;
+}
+.electruc-brand{
+  display: inline-flex;
+  align-items: center;
+  gap: .75rem;
+  font-weight: 800;
+  color: var(--electruc-ink);
+}
+.electruc-brand img{ display:block; height: 64px; width: auto; }
+
+.electruc-container{ max-width: 1100px; margin: 0 auto; padding: 1rem; }
+
+/* Section backgrounds */
+.electruc-section{
+  background: #ffffff;
+  border: 1px solid var(--electruc-border);
+  border-radius: 16px;
+  padding: 1.25rem;
+}
+.electruc-section--accent{
+  background: linear-gradient(180deg, #ffffff 0%, rgba(111,207,151,0.12) 100%);
+  border-color: rgba(111,207,151,0.35);
+}
+.electruc-card{
+  border: 1px solid var(--electruc-border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 1rem;
+  box-shadow: 0 1px 0 rgba(36,52,71,0.05);
+}
+.electruc-muted{ color: #5B6776; }
+
+.electruc-btn{
+  display: inline-block;
+  background: var(--electruc-accent);
+  color: #0b2a1a;
+  font-weight: 700;
+  border: 0;
+  border-radius: 10px;
+  padding: .55rem .9rem;
+}
+.electruc-btn:hover{ filter: brightness(0.97); text-decoration: none; }
+
+.electruc-badge{
+  display:inline-flex;
+  align-items:center;
+  padding: .25rem .6rem;
+  border-radius: 999px;
+  font-weight: 700;
+  border: 1px solid var(--electruc-border);
+  background: var(--electruc-bg);
+  color: var(--electruc-ink);
+}
+.electruc-badge--ok{ background: rgba(111,207,151,0.18); border-color: rgba(111,207,151,0.45); }
+.electruc-badge--warn{ background: rgba(242,201,76,0.20); border-color: rgba(242,201,76,0.55); }
+.electruc-badge--err{ background: rgba(235,87,87,0.12); border-color: rgba(235,87,87,0.35); }
+
+/* Senior-friendly readability */
+.electruc-h1{ font-size: 2rem; margin: .5rem 0 1rem; color: var(--electruc-ink); }
+.electruc-h2{ font-size: 1.25rem; margin: 1.25rem 0 .75rem; color: var(--electruc-ink); }
+.electruc-help{ font-size: .95rem; color: #5B6776; }
+
+/* Layout helpers */
+.electruc-header-row{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+}
+.electruc-nav{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:.9rem;
+}
+.electruc-nav a{
+  padding:.35rem .6rem;
+  border-radius: 8px;
+}
+.electruc-nav a:hover{
+  background: var(--electruc-bg);
+  text-decoration: none;
+}
+
+/* Forms */
+form p{ margin: .6rem 0; }
+label{ display:block; font-weight: 700; margin-bottom: .25rem; color: var(--electruc-ink); }
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="file"],
+textarea,
+select{
+  width: 100%;
+  max-width: 520px;
+  padding: .55rem .65rem;
+  border: 1px solid var(--electruc-border);
+  border-radius: 10px;
+  background: #fff;
+}
+textarea{ min-height: 120px; }
+button[type="submit"]{ cursor: pointer; }

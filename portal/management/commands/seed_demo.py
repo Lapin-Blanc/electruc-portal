@@ -7,7 +7,15 @@ from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 
-from portal.models import Attachment, Contract, Domiciliation, Invoice, MeterReading, SupportRequest
+from portal.models import (
+    Attachment,
+    Contract,
+    CustomerProfile,
+    Domiciliation,
+    Invoice,
+    MeterReading,
+    SupportRequest,
+)
 
 
 class Command(BaseCommand):
@@ -36,9 +44,24 @@ class Command(BaseCommand):
         ]
 
         addresses = [
-            "Rue des Carmes 12, 5000 Namur",
-            "Avenue Louise 220, 1050 Bruxelles",
-            "Chaussée de Liège 45, 4000 Liège",
+            {
+                "street": "Rue des Carmes",
+                "number": "12",
+                "postal_code": "5000",
+                "city": "Namur",
+            },
+            {
+                "street": "Avenue Louise",
+                "number": "220",
+                "postal_code": "1050",
+                "city": "Bruxelles",
+            },
+            {
+                "street": "Chaussée de Liège",
+                "number": "45",
+                "postal_code": "4000",
+                "city": "Liège",
+            },
         ]
 
         plan_names = ["Électricité résidentielle", "Électricité & gaz", "Gaz résidentiel"]
@@ -75,15 +98,35 @@ class Command(BaseCommand):
             Contract.objects.filter(user=user).delete()
             Invoice.objects.filter(user=user).delete()
             MeterReading.objects.filter(user=user).delete()
+            CustomerProfile.objects.filter(user=user).delete()
 
             contract_reference = f"CTR-2025-{index + 1:03d}"
+            address = addresses[index % len(addresses)]
+
             Contract.objects.create(
                 user=user,
                 reference=contract_reference,
                 start_date=date(2024, 1, 15) + timedelta(days=index * 30),
                 plan_name=plan_names[index % len(plan_names)],
-                supply_address=addresses[index % len(addresses)],
+                supply_address=f"{address['street']} {address['number']}, {address['postal_code']} {address['city']}",
                 status=Contract.STATUS_ACTIVE,
+            )
+
+            CustomerProfile.objects.create(
+                user=user,
+                customer_ref=f"CLI-2025-{index + 1:03d}",
+                ean=f"54{index + 1:016d}",
+                supply_address_street=address["street"],
+                supply_address_number=address["number"],
+                supply_address_postal_code=address["postal_code"],
+                supply_address_city=address["city"],
+                billing_address_street="Rue du Marché",
+                billing_address_number="8",
+                billing_address_postal_code="5000",
+                billing_address_city="Namur",
+                phone="081 00 00 00",
+                preferred_contact=CustomerProfile.CONTACT_EMAIL,
+                language=CustomerProfile.LANG_FR,
             )
 
             for month_offset in range(3):
@@ -113,6 +156,13 @@ class Command(BaseCommand):
                     value_kwh=1200 + (index * 250) + (reading_offset * 140),
                     status=MeterReading.STATUS_VALIDATED,
                 )
+
+            MeterReading.objects.create(
+                user=user,
+                reading_date=date(2026, 1, 15),
+                value_kwh=1500 + (index * 120),
+                status=MeterReading.STATUS_SUBMITTED,
+            )
 
             for request_offset in range(2):
                 support_request = SupportRequest.objects.create(

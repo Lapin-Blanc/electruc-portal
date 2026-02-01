@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Contact — Electruc{% endblock %}
+
+{% block content %}
+  <h2 class="h4 mb-3">Contact</h2>
+  <p class="mb-3">Ce formulaire permet d’envoyer une demande simple.</p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Envoyer</button>
+  </form>
+{% endblock %}
