@@ -15,6 +15,15 @@ DEBUG = os.environ.get("DEBUG", "1") == "1"
 
 ALLOWED_HOSTS = [host for host in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if host]
 
+# CSRF trusted origins (for reverse proxies / Cloudflare)
+CSRF_TRUSTED_ORIGINS = [
+    origin for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if origin
+]
+
+# Honor X-Forwarded-Proto when behind HTTPS-terminating proxies
+if os.environ.get("SECURE_PROXY_SSL_HEADER", "") == "1":
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",
