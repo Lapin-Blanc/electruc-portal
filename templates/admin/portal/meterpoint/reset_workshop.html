@@ -1,20 +1,20 @@
 ﻿{% extends "admin/base_site.html" %}
 
 {% block content %}
-  <h1>Reinitialiser atelier complet</h1>
+  <h1>Réinitialiser atelier complet</h1>
   <p>
-    Cette action reinitialise l'atelier pour une nouvelle session:
+    Cette action réinitialise l'atelier pour une nouvelle session:
   </p>
   <ul>
-    <li>suppression des comptes crees via le parcours d'inscription,</li>
-    <li>reinitialisation de toutes les invitations (usage, verrouillage, expiration).</li>
+    <li>suppression des comptes créés via le parcours d'inscription,</li>
+    <li>réinitialisation de toutes les invitations (usage, verrouillage, expiration).</li>
   </ul>
   <p>
-    Les points de fourniture importes (MeterPoint) sont conserves.
+    Les points de fourniture importés (MeterPoint) sont conservés.
   </p>
   <form method="post">
     {% csrf_token %}
-    <button type="submit" class="deletelink">Confirmer la reinitialisation atelier</button>
+    <button type="submit" class="deletelink">Confirmer la réinitialisation atelier</button>
     <a href="{% url 'admin:portal_meterpoint_changelist' %}" class="button cancel-link">Annuler</a>
   </form>
 {% endblock %}

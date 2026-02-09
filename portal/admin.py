@@ -38,6 +38,16 @@ def _read_csv_rows_from_text(text):
     return csv.DictReader(text.splitlines())
 
 
+def _decode_csv_bytes(raw_bytes: bytes) -> str:
+    """Decode CSV with common encodings while preserving accented characters."""
+    for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+        try:
+            return raw_bytes.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw_bytes.decode("utf-8", errors="replace")
+
+
 def _month_period(anchor: date, month_offset: int):
     target_month = anchor.month + month_offset
     target_year = anchor.year + (target_month - 1) // 12
@@ -291,7 +301,7 @@ class MeterPointAdmin(admin.ModelAdmin):
         url = reverse("admin:portal_meterpoint_invitation_letter", args=[meter_point.id])
         return redirect(url)
 
-    generate_invitation_action.short_description = "Generer invitation"
+    generate_invitation_action.short_description = "Générer invitation"
 
     def generate_invitations_pdf_action(self, request, queryset):
         if not queryset.exists():
@@ -330,7 +340,7 @@ class MeterPointAdmin(admin.ModelAdmin):
 
         return _build_invitations_multipage_pdf(request, items)
 
-    generate_invitations_pdf_action.short_description = "Generer invitations PDF (multi-selection)"
+    generate_invitations_pdf_action.short_description = "Générer invitations PDF (multi-sélection)"
 
     def invitation_letter_view(self, request, meter_point_id):
         meter_point = self.get_object(request, meter_point_id)
@@ -365,11 +375,11 @@ class MeterPointAdmin(admin.ModelAdmin):
             form = MeterPointCSVImportForm(request.POST, request.FILES)
             if form.is_valid():
                 file_obj = form.cleaned_data["csv_file"]
-                decoded = file_obj.read().decode("utf-8", errors="ignore")
+                decoded = _decode_csv_bytes(file_obj.read())
                 created_count, updated_count, errors = import_meter_points_from_reader(_read_csv_rows_from_text(decoded))
                 messages.success(
                     request,
-                    f"Import termine. Points crees: {created_count}, mis a jour: {updated_count}, erreurs: {errors}.",
+                    f"Import terminé. Points créés: {created_count}, mis à jour: {updated_count}, erreurs: {errors}.",
                 )
                 return redirect("..")
         else:
@@ -384,7 +394,7 @@ class MeterPointAdmin(admin.ModelAdmin):
     def import_default_csv_view(self, request):
         csv_path = (getattr(settings, "TRAINING_CUSTOMERS_CSV_PATH", "") or "").strip()
         if not csv_path:
-            messages.error(request, "TRAINING_CUSTOMERS_CSV_PATH n'est pas configure dans l'environnement.")
+            messages.error(request, "TRAINING_CUSTOMERS_CSV_PATH n'est pas configuré dans l'environnement.")
             return redirect("..")
 
         file_path = Path(csv_path)
@@ -392,11 +402,11 @@ class MeterPointAdmin(admin.ModelAdmin):
             messages.error(request, f"Fichier CSV introuvable: {file_path}")
             return redirect("..")
 
-        decoded = file_path.read_text(encoding="utf-8", errors="ignore")
+        decoded = _decode_csv_bytes(file_path.read_bytes())
         created_count, updated_count, errors = import_meter_points_from_reader(_read_csv_rows_from_text(decoded))
         messages.success(
             request,
-            f"Import automatique termine. Points crees: {created_count}, mis a jour: {updated_count}, erreurs: {errors}.",
+            f"Import automatique terminé. Points créés: {created_count}, mis à jour: {updated_count}, erreurs: {errors}.",
         )
         return redirect("..")
 
@@ -405,9 +415,9 @@ class MeterPointAdmin(admin.ModelAdmin):
             deleted_users_count, reset_invitations_count = reset_online_accounts()
             messages.success(
                 request,
-                "Reinitialisation terminee. "
-                f"Comptes supprimes: {deleted_users_count}. "
-                f"Invitations reinitialisees: {reset_invitations_count}.",
+                "Réinitialisation terminée. "
+                f"Comptes supprimés: {deleted_users_count}. "
+                f"Invitations réinitialisées: {reset_invitations_count}.",
             )
             return redirect("..")
 
@@ -421,9 +431,9 @@ class MeterPointAdmin(admin.ModelAdmin):
             deleted_users_count, reset_invitations_count = reset_workshop_data()
             messages.success(
                 request,
-                "Reinitialisation atelier terminee. "
-                f"Comptes supprimes: {deleted_users_count}. "
-                f"Invitations reinitialisees: {reset_invitations_count}.",
+                "Réinitialisation atelier terminée. "
+                f"Comptes supprimés: {deleted_users_count}. "
+                f"Invitations réinitialisées: {reset_invitations_count}.",
             )
             return redirect("..")
 
@@ -489,7 +499,7 @@ class MeterReadingAdmin(admin.ModelAdmin):
         queryset.update(status=MeterReading.STATUS_REJECTED, note="Releve a verifier.")
 
     mark_validated.short_description = "Marquer comme valide"
-    mark_rejected.short_description = "Marquer comme refuse"
+    mark_rejected.short_description = "Marquer comme refusé"
 
 
 @admin.register(SupportRequest)
