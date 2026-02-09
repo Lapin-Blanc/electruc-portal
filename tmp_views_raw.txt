@@ -1,0 +1,570 @@
+﻿"""Views for the portal app (public pages + client area + self-registration)."""
+import json`r`nfrom io import BytesIO
+from decimal import Decimal
+
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.tokens import default_token_generator
+from django.contrib.staticfiles import finders
+from django.core.mail import send_mail
+from django.db import transaction
+from django.http import FileResponse, Http404, HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+
+from .forms import (
+    ContactForm,
+    DomiciliationForm,
+    MeterReadingForm,
+    ProfileForm,
+    RegistrationForm,
+    SupportRequestForm,
+)
+
+
+def _get_reportlab():
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import mm
+        from reportlab.pdfgen import canvas
+    except ModuleNotFoundError:
+        return None, None, None
+    return A4, mm, canvas
+from .models import (
+    Attachment,
+    Contract,
+    CustomerProfile,
+    Domiciliation,
+    Invitation,
+    Invoice,
+    MeterReading,
+    SupportRequest,
+)
+
+
+def home(request):
+    """Public landing page."""
+    return render(request, "portal/home.html")
+
+
+def services(request):
+    """Public services page."""
+    return render(request, "portal/services.html")
+
+
+def faq(request):
+    """Public help/FAQ page."""
+    return render(request, "portal/faq.html")
+
+
+def contact(request):
+    """Public contact page with a simple form (no email sending)."""
+    if request.method == "POST":
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            messages.success(request, "Votre message a bien ete recu.")
+            form = ContactForm()
+    else:
+        form = ContactForm()
+
+    return render(request, "portal/contact.html", {"form": form})
+
+
+def _materialize_meter_history_for_user(user, meter_point):
+    history_items = list(MeterPointHistory.objects.filter(meter_point=meter_point).order_by("period_start"))
+    total_items = len(history_items)
+    for index, item in enumerate(history_items, start=1):
+        invoice_ref = f"FAC-SELF-{user.id:06d}-{item.period_start:%Y%m}"
+        Invoice.objects.update_or_create(
+            user=user,
+            reference=invoice_ref,
+            defaults={
+                "period_start": item.period_start,
+                "period_end": item.period_end,
+                "issue_date": item.period_end + timezone.timedelta(days=3),
+                "amount_eur": item.amount_eur,
+                "status": Invoice.STATUS_PAID if index < total_items else Invoice.STATUS_DUE,
+            },
+        )
+        MeterReading.objects.update_or_create(
+            user=user,
+            reading_date=item.reading_date,
+            defaults={
+                "value_kwh": item.consumption_kwh,
+                "status": MeterReading.STATUS_VALIDATED,
+                "note": "Historique importe",
+            },
+        )
+
+
+def registration_start(request):
+    """Self-registration using EAN + invitation secret code."""
+    if request.user.is_authenticated:
+        return redirect("client_dashboard")
+
+    if request.method == "POST":
+        form = RegistrationForm(request.POST)
+        if form.is_valid():
+            invitation = form.cleaned_data["invitation"]
+            meter_point = form.cleaned_data["meter_point"]
+            email = form.cleaned_data["email"]
+            password = form.cleaned_data["password1"]
+
+            with transaction.atomic():
+                user_model = get_user_model()
+                user = user_model.objects.create_user(
+                    username=email,
+                    email=email,
+                    password=password,
+                    is_active=False,
+                    first_name=meter_point.holder_firstname,
+                    last_name=meter_point.holder_lastname,
+                )
+
+                invitation.used_by = user
+                invitation.save(update_fields=["used_by"])
+
+                Contract.objects.update_or_create(
+                    user=user,
+                    defaults={
+                        "reference": f"CTR-SELF-{user.id:06d}",
+                        "start_date": timezone.localdate(),
+                        "plan_name": "Offre Standard",
+                        "supply_address": meter_point.full_address,
+                        "status": Contract.STATUS_ACTIVE,
+                        "meter_point": meter_point,
+                    },
+                )
+
+                CustomerProfile.objects.get_or_create(
+                    user=user,
+                    defaults={
+                        "customer_ref": f"CLI-SELF-{user.id:06d}",
+                        "ean": meter_point.ean,
+                        "supply_address_street": meter_point.address_line1,
+                        "supply_address_number": meter_point.address_line2 or "",
+                        "supply_address_postal_code": meter_point.postal_code,
+                        "supply_address_city": meter_point.city,
+                        "billing_address_street": meter_point.address_line1,
+                        "billing_address_number": meter_point.address_line2 or "",
+                        "billing_address_postal_code": meter_point.postal_code,
+                        "billing_address_city": meter_point.city,
+                    },
+                )
+                _materialize_meter_history_for_user(user=user, meter_point=meter_point)
+
+            uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            activation_path = reverse("registration_activate", kwargs={"uidb64": uidb64, "token": token})
+            activation_url = f"{settings.SITE_URL.rstrip('/')}{activation_path}"
+            message = render_to_string(
+                "portal/emails/activation_email.txt",
+                {
+                    "user": user,
+                    "activation_url": activation_url,
+                },
+            )
+            send_mail(
+                subject="Activation de votre compte Electruc",
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+            )
+            return redirect("registration_sent")
+    else:
+        form = RegistrationForm()
+
+    return render(request, "portal/registration_start.html", {"form": form})
+
+
+def registration_sent(request):
+    """Confirmation page after registration email is sent."""
+    return render(request, "portal/registration_sent.html")
+
+
+def registration_activate(request, uidb64, token):
+    """Activate account and mark invitation as used."""
+    user = None
+    user_model = get_user_model()
+
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = user_model.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, user_model.DoesNotExist):
+        user = None
+
+    if user is None or not default_token_generator.check_token(user, token):
+        messages.error(request, "Le lien d'activation est invalide ou a expire.")
+        return render(request, "portal/activation_invalid.html", status=400)
+
+    if not user.is_active:
+        user.is_active = True
+        user.save(update_fields=["is_active"])
+
+    contract = Contract.objects.filter(user=user, meter_point__isnull=False).order_by("-start_date").first()
+    if contract:
+        invitation = (
+            Invitation.objects.filter(
+                meter_point=contract.meter_point,
+                used_by=user,
+                used_at__isnull=True,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if invitation:
+            invitation.used_at = timezone.now()
+            invitation.used_by = user
+            invitation.save(update_fields=["used_at", "used_by"])
+
+    messages.success(request, "Votre compte est active. Vous pouvez maintenant vous connecter.")
+    return redirect("login")
+
+
+@login_required
+def client_dashboard(request):
+    """Client dashboard (protected)."""
+    readings = list(
+        MeterReading.objects.filter(user=request.user, status=MeterReading.STATUS_VALIDATED)
+        .order_by("-reading_date")[:5]
+    )
+    readings.reverse()
+    chart_labels = [item.reading_date.strftime("%b %Y") for item in readings]
+    chart_values = [item.value_kwh for item in readings]
+    latest_invoice = Invoice.objects.filter(user=request.user).order_by("-issue_date").first()
+    context = {
+        "chart_labels_json": json.dumps(chart_labels),
+        "chart_values_json": json.dumps(chart_values),
+        "validated_readings_count": len(readings),
+        "invoices_count": Invoice.objects.filter(user=request.user).count(),
+        "latest_invoice": latest_invoice,
+    }
+    return render(request, "client/dashboard.html", context)
+
+
+@login_required
+def client_profile(request):
+    """Client profile page (protected)."""
+    profile, _ = CustomerProfile.objects.get_or_create(
+        user=request.user,
+        defaults={
+            "customer_ref": f"CLI-{request.user.id:05d}",
+            "ean": f"54{request.user.id:016d}",
+            "supply_address_street": "Rue de la Demo",
+            "supply_address_number": "1",
+            "supply_address_postal_code": "1000",
+            "supply_address_city": "Bruxelles",
+        },
+    )
+
+    if request.method == "POST":
+        form = ProfileForm(request.POST, instance=profile, user=request.user)
+        if form.is_valid():
+            updated_profile = form.save(commit=False)
+            updated_profile.save()
+            if form.cleaned_data.get("email") is not None:
+                request.user.email = form.cleaned_data["email"]
+                request.user.save(update_fields=["email"])
+            messages.success(request, "Vos coordonnees ont ete mises a jour.")
+    else:
+        form = ProfileForm(instance=profile, user=request.user)
+
+    return render(
+        request,
+        "client/profile.html",
+        {"profile": profile, "form": form},
+    )
+
+
+@login_required
+def client_contract(request):
+    """Client contract page (protected)."""
+    contract = Contract.objects.filter(user=request.user).order_by("-start_date").first()
+    profile = CustomerProfile.objects.filter(user=request.user).first()
+    return render(
+        request,
+        "client/contract.html",
+        {"contract": contract, "profile": profile},
+    )
+
+
+@login_required
+def client_invoices(request):
+    """Client invoices page (protected)."""
+    invoices = Invoice.objects.filter(user=request.user).order_by("-issue_date")
+    return render(request, "client/invoices.html", {"invoices": invoices})
+
+
+@login_required
+def client_readings(request):
+    """Client meter readings page (protected)."""
+    last_validated = (
+        MeterReading.objects.filter(user=request.user, status=MeterReading.STATUS_VALIDATED)
+        .order_by("-reading_date")
+        .first()
+    )
+
+    if request.method == "POST":
+        form = MeterReadingForm(request.POST, last_validated=last_validated)
+        if form.is_valid():
+            reading = form.save(commit=False)
+            reading.user = request.user
+            reading.status = MeterReading.STATUS_SUBMITTED
+            reading.save()
+            messages.success(request, "Votre releve a ete envoye pour validation.")
+            form = MeterReadingForm(last_validated=last_validated)
+    else:
+        form = MeterReadingForm(last_validated=last_validated)
+
+    readings = MeterReading.objects.filter(user=request.user).order_by("-reading_date")
+    return render(
+        request,
+        "client/readings.html",
+        {"readings": readings, "form": form, "last_validated": last_validated},
+    )
+
+
+@login_required
+def client_requests(request):
+    """Client requests page (protected)."""
+    if request.method == "POST":
+        form = SupportRequestForm(request.POST, request.FILES)
+        if form.is_valid():
+            support_request = form.save(commit=False)
+            support_request.user = request.user
+            support_request.save()
+
+            for file_obj in form.cleaned_data.get("attachments", []):
+                Attachment.objects.create(support_request=support_request, file=file_obj)
+
+            messages.success(request, "Votre demande a bien ete enregistree.")
+            form = SupportRequestForm()
+    else:
+        form = SupportRequestForm()
+
+    support_requests = SupportRequest.objects.filter(user=request.user).order_by("-created_at")
+    return render(
+        request,
+        "client/requests.html",
+        {"support_requests": support_requests, "form": form},
+    )
+
+
+@login_required
+def client_direct_debit(request):
+    """Client direct debit page (protected)."""
+    if request.method == "POST":
+        form = DomiciliationForm(request.POST, request.FILES)
+        if form.is_valid():
+            domiciliation = form.save(commit=False)
+            domiciliation.user = request.user
+            domiciliation.save()
+            messages.success(request, "Votre demande de domiciliation a ete envoyee.")
+            form = DomiciliationForm()
+    else:
+        form = DomiciliationForm()
+
+    history = Domiciliation.objects.filter(user=request.user).order_by("-created_at")
+    return render(
+        request,
+        "client/direct_debit.html",
+        {"form": form, "history": history},
+    )
+
+
+@login_required
+def invoice_pdf_download(request, invoice_id):
+    """Download the invoice PDF if it belongs to the user."""
+    invoice = get_object_or_404(Invoice, id=invoice_id, user=request.user)
+    if not invoice.pdf_file:
+        A4, mm, canvas = _get_reportlab()
+        if not canvas:
+            fallback_pdf = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"
+            response = HttpResponse(fallback_pdf, content_type="application/pdf")
+            response["Content-Disposition"] = f'attachment; filename="facture-{invoice.reference}.pdf"'
+            return response
+        buffer = BytesIO()
+        pdf = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+
+        y = height - 20 * mm
+
+        logo_path = finders.find("branding/electruc-logo.png")
+        if logo_path:
+            pdf.drawImage(logo_path, 20 * mm, y - 12 * mm, width=40 * mm, height=12 * mm, preserveAspectRatio=True)
+        else:
+            pdf.setFont("Helvetica-Bold", 16)
+            pdf.drawString(20 * mm, y, "Electruc")
+
+        y -= 20 * mm
+        pdf.setFont("Helvetica", 10)
+        client_name = request.user.get_full_name() or request.user.username
+        pdf.drawString(20 * mm, y, f"Client: {client_name}")
+        y -= 6 * mm
+        if request.user.email:
+            pdf.drawString(20 * mm, y, f"E-mail: {request.user.email}")
+
+        y -= 12 * mm
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(20 * mm, y, "Facture")
+        y -= 6 * mm
+        pdf.setFont("Helvetica", 10)
+        pdf.drawString(20 * mm, y, f"Reference: {invoice.reference}")
+        y -= 6 * mm
+        pdf.drawString(20 * mm, y, f"Date d'emission: {invoice.issue_date}")
+        y -= 6 * mm
+        pdf.drawString(20 * mm, y, f"Periode: {invoice.period_start} -> {invoice.period_end}")
+        y -= 6 * mm
+        pdf.drawString(20 * mm, y, f"Statut: {invoice.get_status_display()}")
+
+        y -= 12 * mm
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(20 * mm, y, "Detail")
+        y -= 6 * mm
+
+        total = Decimal(invoice.amount_eur)
+        abonnement = (total * Decimal("0.40")).quantize(Decimal("0.01"))
+        consommation = (total * Decimal("0.50")).quantize(Decimal("0.01"))
+        taxes = (total - abonnement - consommation).quantize(Decimal("0.01"))
+
+        pdf.setFont("Helvetica", 10)
+        pdf.drawString(20 * mm, y, "Abonnement")
+        pdf.drawRightString(180 * mm, y, f"{abonnement} EUR")
+        y -= 6 * mm
+        pdf.drawString(20 * mm, y, "Consommation")
+        pdf.drawRightString(180 * mm, y, f"{consommation} EUR")
+        y -= 6 * mm
+        pdf.drawString(20 * mm, y, "Taxes")
+        pdf.drawRightString(180 * mm, y, f"{taxes} EUR")
+        y -= 8 * mm
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(20 * mm, y, "Total")
+        pdf.drawRightString(180 * mm, y, f"{total} EUR")
+
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(20 * mm, 15 * mm, "Document de demonstration - Electruc Portal.")
+
+        pdf.showPage()
+        pdf.save()
+
+        response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="facture-{invoice.reference}.pdf"'
+        return response
+
+    return FileResponse(invoice.pdf_file.open("rb"), as_attachment=True, filename=invoice.pdf_file.name.split("/")[-1])
+
+
+@login_required
+def attachment_download(request, attachment_id):
+    """Download a support attachment if it belongs to the user."""
+    attachment = get_object_or_404(Attachment, id=attachment_id)
+    if attachment.support_request.user_id != request.user.id:
+        raise Http404("Acces refuse.")
+    return FileResponse(attachment.file.open("rb"), as_attachment=True, filename=attachment.file.name.split("/")[-1])
+
+
+@login_required
+def domiciliation_document_download(request, domiciliation_id):
+    """Download a domiciliation document if it belongs to the user."""
+    domiciliation = get_object_or_404(Domiciliation, id=domiciliation_id, user=request.user)
+    return FileResponse(
+        domiciliation.document.open("rb"),
+        as_attachment=True,
+        filename=domiciliation.document.name.split("/")[-1],
+    )
+
+
+@login_required
+def direct_debit_template_download(request):
+    """Download a blank direct debit form (static file)."""
+    template_path = finders.find("forms/domiciliation_electruc.docx")
+    if not template_path:
+        raise Http404("Formulaire non disponible.")
+    return FileResponse(
+        open(template_path, "rb"),
+        as_attachment=True,
+        filename="domiciliation_electruc.docx",
+    )
+
+
+@login_required
+def cgv_download(request):
+    """Download the static CGV PDF."""
+    cgv_path = finders.find("docs/cgv_electruc_v2026_01.pdf")
+    if not cgv_path:
+        raise Http404("CGV non disponibles.")
+    return FileResponse(
+        open(cgv_path, "rb"),
+        as_attachment=True,
+        filename="cgv_electruc_v2026_01.pdf",
+    )
+
+
+@login_required
+def contract_pdf_download(request):
+    """Generate a contract PDF on the fly for the logged-in user."""
+    contract = Contract.objects.filter(user=request.user).order_by("-start_date").first()
+    if not contract:
+        raise Http404("Contrat non disponible.")
+    profile = CustomerProfile.objects.filter(user=request.user).first()
+    A4, mm, canvas = _get_reportlab()
+    if not canvas:
+        fallback_pdf = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"
+        response = HttpResponse(fallback_pdf, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="contrat-{contract.reference}.pdf"'
+        return response
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    y = height - 20 * mm
+
+    logo_path = finders.find("branding/electruc-logo.png")
+    if logo_path:
+        pdf.drawImage(logo_path, 20 * mm, y - 12 * mm, width=40 * mm, height=12 * mm, preserveAspectRatio=True)
+    else:
+        pdf.setFont("Helvetica-Bold", 16)
+        pdf.drawString(20 * mm, y, "Electruc")
+
+    y -= 20 * mm
+    pdf.setFont("Helvetica", 10)
+    client_name = request.user.get_full_name() or request.user.username
+    pdf.drawString(20 * mm, y, f"Client: {client_name}")
+    y -= 6 * mm
+    if request.user.email:
+        pdf.drawString(20 * mm, y, f"E-mail: {request.user.email}")
+
+    y -= 12 * mm
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(20 * mm, y, "Contrat d'energie - Resume")
+    y -= 6 * mm
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(20 * mm, y, f"Reference contrat: {contract.reference}")
+    y -= 6 * mm
+    pdf.drawString(20 * mm, y, f"Offre: {contract.plan_name}")
+    y -= 6 * mm
+    pdf.drawString(20 * mm, y, f"Date de debut: {contract.start_date}")
+    y -= 6 * mm
+    pdf.drawString(20 * mm, y, f"Statut: {contract.get_status_display()}")
+    y -= 6 * mm
+    pdf.drawString(20 * mm, y, f"Adresse de fourniture: {contract.supply_address}")
+
+    if profile:
+        y -= 6 * mm
+        pdf.drawString(20 * mm, y, f"EAN: {profile.ean}")
+
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(20 * mm, 15 * mm, "Document de demonstration - Electruc Portal.")
+    pdf.showPage()
+    pdf.save()
+
+    response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="contrat-{contract.reference}.pdf"'
+    return response
+

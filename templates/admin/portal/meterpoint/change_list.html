@@ -1,0 +1,17 @@
+﻿{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+  <li>
+    <a href="import-default-csv/" class="addlink">Importer base eleves (CSV par defaut)</a>
+  </li>
+  <li>
+    <a href="import-csv/" class="addlink">Importer un CSV</a>
+  </li>
+  <li>
+    <a href="reset-online-accounts/" class="deletelink">Reinitialiser comptes en ligne</a>
+  </li>
+  <li>
+    <a href="reset-workshop/" class="deletelink">Reinitialiser atelier complet</a>
+  </li>
+  {{ block.super }}
+{% endblock %}

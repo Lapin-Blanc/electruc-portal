@@ -1,0 +1,14 @@
+﻿{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <h1>Reinitialiser les comptes en ligne</h1>
+  <p>
+    Cette action supprime les comptes utilisateurs crees via le parcours d'inscription,
+    puis reinitialise les invitations utilisees pour permettre de recommencer l'exercice.
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" class="deletelink">Confirmer la reinitialisation</button>
+    <a href="{% url 'admin:portal_meterpoint_changelist' %}" class="button cancel-link">Annuler</a>
+  </form>
+{% endblock %}

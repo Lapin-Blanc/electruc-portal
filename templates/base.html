@@ -47,6 +47,7 @@
             <a class="nav-link" href="{% url 'services' %}">Nos services</a>
             <a class="nav-link" href="{% url 'faq' %}">Aide / FAQ</a>
             <a class="nav-link" href="{% url 'contact' %}">Contact</a>
+            <a class="nav-link" href="{% url 'registration_start' %}">Inscription</a>
             <a class="nav-link fw-semibold" href="{% url 'client_dashboard' %}">Espace client</a>
           </nav>
           {% if request.user.is_authenticated %}

@@ -1,0 +1,54 @@
+﻿{% extends "admin/base_site.html" %}
+
+{% block extrastyle %}
+<style>
+  .letter-wrap {
+    max-width: 900px;
+    margin: 24px auto;
+    background: #fff;
+    padding: 32px;
+    border: 1px solid #ddd;
+  }
+  .letter-meta { margin-top: 24px; }
+  .secret {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin: 16px 0;
+  }
+  .print-btn { margin-top: 20px; }
+  @media print {
+    .breadcrumbs, .print-btn, #header, #nav-sidebar { display: none !important; }
+    #main { margin: 0 !important; }
+    .letter-wrap { border: none; padding: 0; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="letter-wrap">
+  <h1>Courrier d'invitation - Espace client Electruc</h1>
+
+  <p><strong>Destinataire:</strong> {{ meter_point.holder_full_name }}</p>
+  <p>
+    <strong>Adresse:</strong><br>
+    {{ meter_point.address_line1 }}<br>
+    {% if meter_point.address_line2 %}{{ meter_point.address_line2 }}<br>{% endif %}
+    {{ meter_point.postal_code }} {{ meter_point.city }}<br>
+    {{ meter_point.country }}
+  </p>
+
+  <div class="letter-meta">
+    <p><strong>Code EAN:</strong> {{ meter_point.ean }}</p>
+    <p><strong>Code secret:</strong></p>
+    <p class="secret">{{ secret_code }}</p>
+    <p><strong>URL d'inscription:</strong> {{ registration_url }}</p>
+    <p><strong>Valable jusqu'au:</strong> {{ invitation.expires_at|date:"d/m/Y H:i" }}</p>
+  </div>
+
+  <p class="print-btn">
+    <button type="button" onclick="window.print();" class="button default">Imprimer le courrier</button>
+    <a href="{% url 'admin:portal_meterpoint_changelist' %}" class="button">Retour</a>
+  </p>
+</div>
+{% endblock %}

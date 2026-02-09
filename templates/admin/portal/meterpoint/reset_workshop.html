@@ -1,0 +1,20 @@
+﻿{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <h1>Reinitialiser atelier complet</h1>
+  <p>
+    Cette action reinitialise l'atelier pour une nouvelle session:
+  </p>
+  <ul>
+    <li>suppression des comptes crees via le parcours d'inscription,</li>
+    <li>reinitialisation de toutes les invitations (usage, verrouillage, expiration).</li>
+  </ul>
+  <p>
+    Les points de fourniture importes (MeterPoint) sont conserves.
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" class="deletelink">Confirmer la reinitialisation atelier</button>
+    <a href="{% url 'admin:portal_meterpoint_changelist' %}" class="button cancel-link">Annuler</a>
+  </form>
+{% endblock %}

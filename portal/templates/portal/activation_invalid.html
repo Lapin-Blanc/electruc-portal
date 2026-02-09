@@ -1,0 +1,10 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Activation impossible - Electruc{% endblock %}
+
+{% block content %}
+  <h2 class="h4 mb-3">Activation impossible</h2>
+  <p class="mb-2">Le lien d'activation n'est plus valide.</p>
+  <p class="mb-3">Vous pouvez recommencer l'inscription avec les informations de votre courrier.</p>
+  <a class="btn btn-primary" href="{% url 'registration_start' %}">Recommencer l'inscription</a>
+{% endblock %}

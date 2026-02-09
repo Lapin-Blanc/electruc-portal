@@ -1,4 +1,4 @@
-"""Create simple demonstration data for the portal app."""
+﻿"""Create simple demonstration data for the portal app."""
 from datetime import date, timedelta
 from decimal import Decimal
 import random
@@ -6,20 +6,23 @@ import random
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from portal.models import (
     Attachment,
     Contract,
     CustomerProfile,
     Domiciliation,
+    Invitation,
     Invoice,
+    MeterPoint,
     MeterReading,
     SupportRequest,
 )
 
 
 class Command(BaseCommand):
-    help = "Create demo users, contracts, invoices, readings, support requests and uploads."
+    help = "Create demo users, contracts, invoices, readings, support requests, meter points and invitations."
 
     def handle(self, *args, **options):
         users_data = [
@@ -57,18 +60,18 @@ class Command(BaseCommand):
                 "city": "Bruxelles",
             },
             {
-                "street": "Chaussée de Liège",
+                "street": "Chaussee de Liege",
                 "number": "45",
                 "postal_code": "4000",
-                "city": "Liège",
+                "city": "Liege",
             },
         ]
 
-        plan_names = ["Électricité résidentielle", "Électricité & gaz", "Gaz résidentiel"]
+        plan_names = ["Electricite residentielle", "Electricite et gaz", "Gaz residentiel"]
 
         subject_samples = [
             "Question sur une facture",
-            "Mise à jour des coordonnées",
+            "Mise a jour des coordonnees",
             "Suivi d'une demande",
         ]
 
@@ -76,6 +79,9 @@ class Command(BaseCommand):
         png_bytes = b"\x89PNG\r\n\x1a\n" + b"0" * 100
 
         User = get_user_model()
+
+        Invitation.objects.all().delete()
+        MeterPoint.objects.all().delete()
 
         for index, user_data in enumerate(users_data):
             user, created = User.objects.get_or_create(
@@ -91,7 +97,6 @@ class Command(BaseCommand):
                 user.set_password("demo1234")
                 user.save()
 
-            # Clear previous demo data for this user to keep the dataset clean.
             Attachment.objects.filter(support_request__user=user).delete()
             SupportRequest.objects.filter(user=user).delete()
             Domiciliation.objects.filter(user=user).delete()
@@ -120,7 +125,7 @@ class Command(BaseCommand):
                 supply_address_number=address["number"],
                 supply_address_postal_code=address["postal_code"],
                 supply_address_city=address["city"],
-                billing_address_street="Rue du Marché",
+                billing_address_street="Rue du Marche",
                 billing_address_number="8",
                 billing_address_postal_code="5000",
                 billing_address_city="Namur",
@@ -143,7 +148,6 @@ class Command(BaseCommand):
                     amount_eur=amount,
                     status=Invoice.STATUS_PAID if month_offset > 0 else Invoice.STATUS_DUE,
                 )
-                # Only attach a PDF for the very first invoice to test both paths.
                 if index == 0 and month_offset == 0:
                     pdf_name = f"facture-{invoice.reference}.pdf"
                     invoice.pdf_file.save(pdf_name, ContentFile(pdf_bytes), save=True)
@@ -168,7 +172,7 @@ class Command(BaseCommand):
                 support_request = SupportRequest.objects.create(
                     user=user,
                     subject=subject_samples[request_offset % len(subject_samples)],
-                    message="Demande enregistrée pour suivi par le service client.",
+                    message="Demande enregistree pour suivi par le service client.",
                     status=SupportRequest.STATUS_IN_PROGRESS if request_offset == 0 else SupportRequest.STATUS_OPEN,
                 )
                 attachment = Attachment(support_request=support_request)
@@ -186,4 +190,25 @@ class Command(BaseCommand):
                     save=True,
                 )
 
-        self.stdout.write(self.style.SUCCESS("Données de démonstration créées."))
+        self.stdout.write("")
+        self.stdout.write("Invitations de demonstration (codes affiches une seule fois):")
+        for index, address in enumerate(addresses):
+            meter_point = MeterPoint.objects.create(
+                ean=f"54123456789012{index + 1}",
+                address_line1=f"{address['street']} {address['number']}",
+                address_line2="",
+                postal_code=address["postal_code"],
+                city=address["city"],
+                country="BE",
+                holder_firstname=users_data[index]["first_name"],
+                holder_lastname=users_data[index]["last_name"],
+            )
+            invitation, secret_code = Invitation.create_with_secret(
+                meter_point=meter_point,
+                expires_at=timezone.now() + timedelta(days=30),
+            )
+            self.stdout.write(
+                f"- EAN: {meter_point.ean} | code secret: {secret_code} | expire le {invitation.expires_at:%Y-%m-%d}"
+            )
+
+        self.stdout.write(self.style.SUCCESS("Donnees de demonstration creees."))

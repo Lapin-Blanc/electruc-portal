@@ -1,0 +1,18 @@
+﻿{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <h1>Importer des points de fourniture (CSV)</h1>
+  <p>
+    Le CSV doit contenir au minimum: <code>meter_ean</code>, <code>firstname</code>,
+    <code>lastname</code>, <code>supply_address</code>, <code>supply_postcode</code>, <code>supply_city</code>.
+  </p>
+  <p>
+    Aucun compte en ligne n'est cree pendant cet import. Les eleves s'inscrivent ensuite via le flux
+    invitation (EAN + code secret).
+  </p>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="default">Importer</button>
+  </form>
+{% endblock %}

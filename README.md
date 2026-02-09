@@ -112,3 +112,40 @@ et n’utilise aucune donnée, marque ou service existant.
 ## 📦 Licence
 
 Projet open source — voir le fichier LICENSE.
+
+---
+
+## Deploiement Docker (VPS + cloudflared)
+
+Fichiers ajoutes:
+- `docker-compose.prod.yml`
+- `.env.prod.example`
+
+### 1) Preparer les variables de production
+
+```bash
+cp .env.prod.example .env.prod
+```
+
+Renseigner au minimum:
+- `SECRET_KEY`
+- `ALLOWED_HOSTS`
+- `CSRF_TRUSTED_ORIGINS`
+- `SITE_URL`
+
+Pour un tunnel cloudflared (HTTPS public vers service local), utiliser votre domaine public en `https://...`.
+
+### 2) Lancer en production
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+```
+
+Le service web ecoute sur `127.0.0.1:8000` (accessible localement par cloudflared).
+
+### 3) Notes cloudflared
+
+- Garder `SECURE_PROXY_SSL_HEADER=1` si `X-Forwarded-Proto` est bien transmis.
+- Si vous observez une boucle de redirection HTTPS, tester:
+  - `SECURE_PROXY_SSL_HEADER=0`
+  - `SECURE_SSL_REDIRECT=0`

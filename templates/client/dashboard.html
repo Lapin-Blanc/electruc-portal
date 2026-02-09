@@ -1,8 +1,76 @@
-{% extends "client/base.html" %}
+﻿{% extends "client/base.html" %}
 
-{% block title %}Tableau de bord — Electruc{% endblock %}
+{% block title %}Tableau de bord - Electruc{% endblock %}
 
 {% block client_content %}
   <h3>Tableau de bord</h3>
-  <p>Vue d’ensemble de votre espace client (contenu à venir).</p>
+  <p class="text-muted">Synthese de votre consommation des cinq derniers mois.</p>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="border rounded p-3 bg-light">
+        <div class="small text-muted">Factures disponibles</div>
+        <div class="h4 mb-0">{{ invoices_count }}</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="border rounded p-3 bg-light">
+        <div class="small text-muted">Releves valides</div>
+        <div class="h4 mb-0">{{ validated_readings_count }}</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="border rounded p-3 bg-light">
+        <div class="small text-muted">Derniere facture</div>
+        <div class="h6 mb-0">{% if latest_invoice %}{{ latest_invoice.reference }}{% else %}-{% endif %}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="border rounded p-3">
+    <h4 class="h6 mb-3">Consommation mensuelle (kWh)</h4>
+    <div id="consumption-chart" class="d-flex align-items-end gap-2" style="height: 220px;"></div>
+    <div class="small text-muted mt-2">Donnees historiques importees a partir de votre dossier client.</div>
+  </div>
+
+  <script>
+    (function () {
+      const labels = {{ chart_labels_json|safe }};
+      const values = {{ chart_values_json|safe }};
+      const chart = document.getElementById("consumption-chart");
+      if (!chart || !Array.isArray(labels) || !Array.isArray(values) || !values.length) {
+        if (chart) {
+          chart.innerHTML = "<p class='text-muted mb-0'>Aucune consommation historique disponible.</p>";
+        }
+        return;
+      }
+
+      const maxValue = Math.max(...values, 1);
+      values.forEach((value, index) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "flex-fill d-flex flex-column align-items-center justify-content-end";
+
+        const bar = document.createElement("div");
+        bar.style.height = `${Math.max(8, (value / maxValue) * 170)}px`;
+        bar.style.width = "100%";
+        bar.style.maxWidth = "72px";
+        bar.style.background = "#6FCF97";
+        bar.style.borderRadius = "8px 8px 0 0";
+        bar.title = `${labels[index]}: ${value} kWh`;
+
+        const val = document.createElement("div");
+        val.className = "small fw-semibold mt-2";
+        val.textContent = `${value}`;
+
+        const lab = document.createElement("div");
+        lab.className = "small text-muted";
+        lab.textContent = labels[index];
+
+        wrapper.appendChild(bar);
+        wrapper.appendChild(val);
+        wrapper.appendChild(lab);
+        chart.appendChild(wrapper);
+      });
+    })();
+  </script>
 {% endblock %}

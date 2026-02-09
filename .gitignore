@@ -136,6 +136,9 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
+!.env.prod.example
 .envrc
 .venv
 env/
@@ -205,3 +208,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Electruc local/prod runtime artifacts
+media/
+staticfiles/
+data/

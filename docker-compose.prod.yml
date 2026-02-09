@@ -1,0 +1,21 @@
+﻿services:
+  web:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    ports:
+      - "127.0.0.1:8000:8000"
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn electruc.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60"
+    volumes:
+      - media:/app/media
+      - staticfiles:/app/staticfiles
+      - db:/app/data
+
+volumes:
+  media:
+  staticfiles:
+  db:
