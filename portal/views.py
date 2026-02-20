@@ -165,8 +165,15 @@ def contact(request):
 
 def _materialize_meter_history_for_user(user, meter_point):
     history_items = list(MeterPointHistory.objects.filter(meter_point=meter_point).order_by("period_start"))
+    contract = Contract.objects.filter(user=user, meter_point=meter_point).order_by("-start_date").first()
+    if not contract:
+        return
     total_items = len(history_items)
     for index, item in enumerate(history_items, start=1):
+        total, unit_price, standing_charge = contract.estimate_invoice_amount(
+            consumption_kwh=item.consumption_kwh,
+            period_end=item.period_end,
+        )
         invoice_ref = f"FAC-SELF-{user.id:06d}-{item.period_start:%Y%m}"
         Invoice.objects.update_or_create(
             user=user,
@@ -175,7 +182,10 @@ def _materialize_meter_history_for_user(user, meter_point):
                 "period_start": item.period_start,
                 "period_end": item.period_end,
                 "issue_date": item.period_end + timezone.timedelta(days=3),
-                "amount_eur": item.amount_eur,
+                "consumption_kwh": item.consumption_kwh,
+                "unit_price_eur_kwh": unit_price,
+                "standing_charge_eur": standing_charge,
+                "amount_eur": total,
                 "status": Invoice.STATUS_PAID if index < total_items else Invoice.STATUS_DUE,
             },
         )
@@ -202,34 +212,57 @@ def registration_start(request):
             meter_point = form.cleaned_data["meter_point"]
             email = form.cleaned_data["email"]
             password = form.cleaned_data["password1"]
+            existing_user = form.cleaned_data.get("existing_user")
 
             with transaction.atomic():
-                user_model = get_user_model()
-                user = user_model.objects.create_user(
-                    username=email,
-                    email=email,
-                    password=password,
-                    is_active=False,
-                    first_name=meter_point.holder_firstname,
-                    last_name=meter_point.holder_lastname,
-                )
+                is_variable = meter_point.ean[-1:].isdigit() and int(meter_point.ean[-1]) % 2 == 1
+                if existing_user:
+                    user = existing_user
+                    user.email = email
+                    user.username = email
+                    user.first_name = meter_point.holder_firstname
+                    user.last_name = meter_point.holder_lastname
+                    user.set_password(password)
+                    user.save(update_fields=["email", "username", "first_name", "last_name", "password"])
+                else:
+                    user_model = get_user_model()
+                    user = user_model.objects.create_user(
+                        username=email,
+                        email=email,
+                        password=password,
+                        is_active=False,
+                        first_name=meter_point.holder_firstname,
+                        last_name=meter_point.holder_lastname,
+                    )
 
-                invitation.used_by = user
-                invitation.save(update_fields=["used_by"])
+                if invitation.used_by_id != user.id:
+                    invitation.used_by = user
+                    invitation.save(update_fields=["used_by"])
 
                 Contract.objects.update_or_create(
                     user=user,
                     defaults={
                         "reference": f"CTR-SELF-{user.id:06d}",
                         "start_date": timezone.localdate(),
-                        "plan_name": "Offre Standard",
+                        "plan_name": (
+                            "Offre Variable Indexee"
+                            if is_variable
+                            else "Offre Fixe Securisee"
+                        ),
+                        "tariff_type": (
+                            Contract.TARIFF_VARIABLE
+                            if is_variable
+                            else Contract.TARIFF_FIXED
+                        ),
+                        "standing_charge_eur": Decimal("12.00"),
+                        "fixed_unit_price_eur_kwh": Decimal("0.2850"),
                         "supply_address": meter_point.full_address,
                         "status": Contract.STATUS_ACTIVE,
                         "meter_point": meter_point,
                     },
                 )
 
-                CustomerProfile.objects.get_or_create(
+                CustomerProfile.objects.update_or_create(
                     user=user,
                     defaults={
                         "customer_ref": f"CLI-SELF-{user.id:06d}",
@@ -517,8 +550,8 @@ def invoice_pdf_download(request, invoice_id):
         pdf.drawString(113 * mm, 225 * mm, f"Statut: {invoice.get_status_display()}")
 
         total = Decimal(invoice.amount_eur)
-        abonnement = (total * Decimal("0.40")).quantize(Decimal("0.01"))
-        consommation = (total * Decimal("0.50")).quantize(Decimal("0.01"))
+        abonnement = Decimal(invoice.standing_charge_eur or Decimal("0.00")).quantize(Decimal("0.01"))
+        consommation = (Decimal(invoice.consumption_kwh) * Decimal(invoice.unit_price_eur_kwh)).quantize(Decimal("0.01"))
         taxes = (total - abonnement - consommation).quantize(Decimal("0.01"))
 
         # Detail table
@@ -528,7 +561,10 @@ def invoice_pdf_download(request, invoice_id):
         row_height = 9 * mm
         rows = [
             ("Abonnement mensuel", abonnement),
-            ("Consommation energie", consommation),
+            (
+                f"Consommation energie ({invoice.consumption_kwh} kWh x {Decimal(invoice.unit_price_eur_kwh)} EUR/kWh)",
+                consommation,
+            ),
             ("Taxes et contributions", taxes),
         ]
 

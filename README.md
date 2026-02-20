@@ -1,128 +1,30 @@
-# Electruc Portal
+﻿# Electruc Portal
 
-Electruc Portal est une **application web pédagogique** développée avec **Django**,
-qui simule un **portail client de fournisseur d’énergie en Belgique**.
+Electruc Portal est une application web pédagogique Django simulant un portail client de fournisseur d'énergie (Belgique).
 
-L’objectif n’est pas d’enseigner Django, mais de permettre à des apprenants
-(notamment des seniors et des adultes en formation)
-de s’exercer à des **usages numériques réels** à travers un site de services crédible.
+## Reprise rapide
+Pour une reprise de développement (humaine ou IA), lire en priorité:
+- `docs/HANDOVER.md`
+- `docs/TASKS.md`
+- `docs/SPEC.md`
 
-Ce projet est **fictif**, **neutre**, et conçu exclusivement à des fins pédagogiques.
+## Démarrage local
+```bash
+python manage.py migrate
+python manage.py runserver
+```
 
----
+## Tests
+```bash
+python manage.py test
+```
 
-## 🎯 Objectifs pédagogiques
-
-Les apprenants peuvent s’exercer à :
-- créer et utiliser un compte en ligne
-- se connecter à un espace client
-- naviguer dans un site de services
-- consulter un contrat et des données personnelles
-- télécharger des factures (PDF)
-- encoder un relevé de compteur
-- envoyer une demande au service client avec pièce jointe
-- comprendre des messages de confirmation et des statuts
-
-L’interface et le vocabulaire s’inspirent de portails de services réels
-(sans reproduire aucune marque existante).
-
----
-
-## 🧱 Périmètre fonctionnel (MVP)
-
-### Pages publiques (sans connexion)
-- Accueil
-- Nos services
-- Aide / FAQ
-- Contact (formulaire simple)
-
-### Espace client (connexion requise)
-- Tableau de bord
-- Mon profil
-- Mon contrat
-- Mes factures (liste + téléchargement PDF)
-- Mes relevés (formulaire + historique)
-- Mes demandes (tickets + pièces jointes)
-- Domiciliation bancaire (activation via dépôt de document)
-
-### Administration
-- Interface d’administration Django pour :
-  - la gestion des utilisateurs (clients)
-  - les contrats
-  - les factures
-  - les demandes
-  - la remise à zéro des données de démonstration
-
----
-
-## 🚫 Hors périmètre
-
-Pour rester simple et pédagogique :
-- aucun paiement réel
-- aucune connexion bancaire réelle
-- aucun calcul tarifaire réel
-- aucune API externe
-- envoi d’e-mails réel optionnel ou simulé
-
----
-
-## 🛠️ Stack technique
-
-- Python 3
-- Django
-- Templates Django (rendu côté serveur)
-- SQLite ou PostgreSQL
-- Bootstrap (interface)
-- Docker et Docker Compose
-
----
-
-## 🔐 Sécurité (niveau pédagogique)
-
-- hachage des mots de passe (par défaut Django)
-- protection CSRF
-- contrôle basique des fichiers envoyés
-- accès restreint aux pages privées
-
----
-
-## 🧪 Données de démonstration
-
-Le projet inclut des données fictives pour l’apprentissage :
-- plusieurs clients
-- contrats
-- factures
-- relevés
-- demandes au service client
-
-Un mécanisme permet de **réinitialiser facilement** l’environnement
-entre deux groupes d’apprenants.
-
----
-
-## ⚖️ Mentions légales
-
-Ce projet est **fictif** et destiné à un **usage pédagogique**.
-
-Il n’est affilié à aucune entreprise réelle
-et n’utilise aucune donnée, marque ou service existant.
-
----
-
-## 📦 Licence
-
-Projet open source — voir le fichier LICENSE.
-
----
-
-## Deploiement Docker (VPS + cloudflared)
-
-Fichiers ajoutes:
+## Déploiement Docker (VPS + cloudflared)
+Fichiers:
 - `docker-compose.prod.yml`
 - `.env.prod.example`
 
-### 1) Preparer les variables de production
-
+### 1) Préparer les variables
 ```bash
 cp .env.prod.example .env.prod
 ```
@@ -133,19 +35,16 @@ Renseigner au minimum:
 - `CSRF_TRUSTED_ORIGINS`
 - `SITE_URL`
 
-Pour un tunnel cloudflared (HTTPS public vers service local), utiliser votre domaine public en `https://...`.
-
-### 2) Lancer en production
-
+### 2) Lancer
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
-Le service web ecoute sur `127.0.0.1:8000` (accessible localement par cloudflared).
-
 ### 3) Notes cloudflared
-
-- Garder `SECURE_PROXY_SSL_HEADER=1` si `X-Forwarded-Proto` est bien transmis.
-- Si vous observez une boucle de redirection HTTPS, tester:
+- Garder `SECURE_PROXY_SSL_HEADER=1` si `X-Forwarded-Proto` est transmis
+- En cas de boucle HTTPS:
   - `SECURE_PROXY_SSL_HEADER=0`
   - `SECURE_SSL_REDIRECT=0`
+
+## Licence
+Voir `LICENSE`.

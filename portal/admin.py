@@ -208,7 +208,7 @@ def _build_invitations_multipage_pdf(request, items):
         pdf.setFont("Helvetica-Bold", 11)
         pdf.drawString(20 * mm, y, f"Code EAN: {item['ean']}")
         y -= 10 * mm
-        pdf.drawString(20 * mm, y, f"Code secret: {item['secret_code']}")
+        pdf.drawString(20 * mm, y, f"Code d'activation unique: {item['secret_code']}")
         y -= 10 * mm
         pdf.setFont("Helvetica", 10)
         pdf.drawString(20 * mm, y, f"URL inscription: {item['registration_url']}")
@@ -220,7 +220,7 @@ def _build_invitations_multipage_pdf(request, items):
         pdf.drawString(
             20 * mm,
             y,
-            "Le code EAN et le code secret sont necessaires pour creer le compte en ligne.",
+            "Le code EAN et le code d'activation unique sont necessaires pour creer le compte en ligne.",
         )
         pdf.drawString(20 * mm, 18 * mm, "Document de demonstration - diffusion interne atelier.")
         pdf.showPage()
@@ -253,8 +253,9 @@ def reset_workshop_data():
 class MeterPointAdmin(admin.ModelAdmin):
     list_display = ("ean", "holder_lastname", "holder_firstname", "postal_code", "city", "country")
     search_fields = ("ean", "holder_lastname", "holder_firstname", "address_line1", "city")
-    actions = ["generate_invitation_action", "generate_invitations_pdf_action"]
+    actions = ["generate_invitations_pdf_action"]
     change_list_template = "admin/portal/meterpoint/change_list.html"
+    change_form_template = "admin/portal/meterpoint/change_form.html"
 
     def get_readonly_fields(self, request, obj=None):
         if obj:
@@ -288,20 +289,10 @@ class MeterPointAdmin(admin.ModelAdmin):
         ]
         return custom + urls
 
-    def generate_invitation_action(self, request, queryset):
-        if queryset.count() != 1:
-            self.message_user(
-                request,
-                "Selectionnez un seul point de fourniture pour generer un courrier d'invitation.",
-                level=messages.WARNING,
-            )
-            return None
-
-        meter_point = queryset.first()
-        url = reverse("admin:portal_meterpoint_invitation_letter", args=[meter_point.id])
-        return redirect(url)
-
-    generate_invitation_action.short_description = "Générer invitation"
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Keep manual admin creation aligned with CSV import behavior.
+        ensure_meter_point_history(obj)
 
     def generate_invitations_pdf_action(self, request, queryset):
         if not queryset.exists():
@@ -473,8 +464,8 @@ class MeterPointHistoryAdmin(admin.ModelAdmin):
 
 @admin.register(Contract)
 class ContractAdmin(admin.ModelAdmin):
-    list_display = ("reference", "user", "meter_point", "plan_name", "status", "start_date")
-    list_filter = ("status",)
+    list_display = ("reference", "user", "meter_point", "plan_name", "tariff_type", "status", "start_date")
+    list_filter = ("status", "tariff_type")
     search_fields = ("reference", "user__username", "user__email", "meter_point__ean")
 
 
@@ -525,3 +516,14 @@ class AttachmentAdmin(admin.ModelAdmin):
 class CustomerProfileAdmin(admin.ModelAdmin):
     list_display = ("customer_ref", "user", "ean", "meter_serial", "preferred_contact", "language")
     search_fields = ("customer_ref", "ean", "user__username", "user__email")
+
+    def delete_model(self, request, obj):
+        """Deleting a customer profile must also delete its user and related data."""
+        user = obj.user
+        user.delete()
+
+    def delete_queryset(self, request, queryset):
+        """Bulk delete profiles by deleting linked users (cascade cleans all related data)."""
+        user_ids = list(queryset.values_list("user_id", flat=True))
+        if user_ids:
+            get_user_model().objects.filter(id__in=user_ids).delete()

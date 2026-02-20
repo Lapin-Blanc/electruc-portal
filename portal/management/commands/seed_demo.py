@@ -138,13 +138,19 @@ class Command(BaseCommand):
                 period_end = date(2025, 12, 31) - timedelta(days=30 * month_offset)
                 period_start = period_end - timedelta(days=29)
                 issue_date = period_end + timedelta(days=3)
-                amount = Decimal(random.randint(45, 120)) + Decimal("0.00")
+                consumption_kwh = 260 + (index * 20) + (month_offset * 18)
+                unit_price = Decimal("0.2850")
+                standing_charge = Decimal("12.00")
+                amount = (standing_charge + (Decimal(consumption_kwh) * unit_price)).quantize(Decimal("0.01"))
                 invoice = Invoice.objects.create(
                     user=user,
                     reference=f"FAC-2025-{index + 1:03d}-{month_offset + 1:02d}",
                     period_start=period_start,
                     period_end=period_end,
                     issue_date=issue_date,
+                    consumption_kwh=consumption_kwh,
+                    unit_price_eur_kwh=unit_price,
+                    standing_charge_eur=standing_charge,
                     amount_eur=amount,
                     status=Invoice.STATUS_PAID if month_offset > 0 else Invoice.STATUS_DUE,
                 )
@@ -208,7 +214,7 @@ class Command(BaseCommand):
                 expires_at=timezone.now() + timedelta(days=30),
             )
             self.stdout.write(
-                f"- EAN: {meter_point.ean} | code secret: {secret_code} | expire le {invitation.expires_at:%Y-%m-%d}"
+                f"- EAN: {meter_point.ean} | code d'activation unique: {secret_code} | expire le {invitation.expires_at:%Y-%m-%d}"
             )
 
         self.stdout.write(self.style.SUCCESS("Donnees de demonstration creees."))

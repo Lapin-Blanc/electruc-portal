@@ -213,3 +213,10 @@ __marimo__/
 media/
 staticfiles/
 data/
+
+# Local temporary/backup files
+tmp_*
+*.tmp
+*.bak
+*.orig
+*~

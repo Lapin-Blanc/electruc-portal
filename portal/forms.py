@@ -36,7 +36,7 @@ class RegistrationForm(BootstrapFormMixin, forms.Form):
     """Self-registration form based on invitation details."""
 
     ean = forms.CharField(label="Code EAN", max_length=30)
-    secret_code = forms.CharField(label="Code secret", max_length=20)
+    secret_code = forms.CharField(label="Code d'activation unique", max_length=20)
     email = forms.EmailField(label="Adresse e-mail")
     password1 = forms.CharField(label="Mot de passe", widget=forms.PasswordInput)
     password2 = forms.CharField(label="Confirmation du mot de passe", widget=forms.PasswordInput)
@@ -50,17 +50,11 @@ class RegistrationForm(BootstrapFormMixin, forms.Form):
         super().__init__(*args, **kwargs)
         self.apply_bootstrap()
 
-    def clean_email(self):
-        email = self.cleaned_data["email"].strip().lower()
-        user_model = get_user_model()
-        if user_model.objects.filter(username__iexact=email).exists() or user_model.objects.filter(email__iexact=email).exists():
-            raise forms.ValidationError("Cette adresse e-mail est deja utilisee.")
-        return email
-
     def clean(self):
         cleaned_data = super().clean()
         ean = (cleaned_data.get("ean") or "").strip()
         secret_code = (cleaned_data.get("secret_code") or "").strip().upper()
+        email = (cleaned_data.get("email") or "").strip().lower()
         password1 = cleaned_data.get("password1")
         password2 = cleaned_data.get("password2")
 
@@ -73,7 +67,7 @@ class RegistrationForm(BootstrapFormMixin, forms.Form):
             except forms.ValidationError as exc:
                 self.add_error("password1", exc)
 
-        if not ean or not secret_code:
+        if not ean or not secret_code or not email:
             return cleaned_data
 
         meter_point = MeterPoint.objects.filter(ean=ean).first()
@@ -88,7 +82,6 @@ class RegistrationForm(BootstrapFormMixin, forms.Form):
         if (
             not invitation
             or invitation.used_at is not None
-            or invitation.used_by is not None
             or invitation.expires_at <= timezone.now()
         ):
             raise forms.ValidationError(self.error_messages["invalid_invitation"])
@@ -100,10 +93,45 @@ class RegistrationForm(BootstrapFormMixin, forms.Form):
             invitation.register_failed_attempt()
             raise forms.ValidationError(self.error_messages["invalid_invitation"])
 
+        user_model = get_user_model()
+        user_by_email = (
+            user_model.objects.filter(username__iexact=email).first()
+            or user_model.objects.filter(email__iexact=email).first()
+        )
+        profile_for_ean = CustomerProfile.objects.filter(ean=meter_point.ean).select_related("user").first()
+
+        existing_user = None
+        if profile_for_ean:
+            if user_by_email and user_by_email.id != profile_for_ean.user_id:
+                self.add_error("email", "Cette adresse e-mail ne correspond pas au dossier client.")
+                return cleaned_data
+            existing_user = profile_for_ean.user
+        elif user_by_email:
+            existing_user = user_by_email
+
+        if existing_user:
+            if existing_user.is_active:
+                self.add_error("email", "Cette adresse e-mail est deja utilisee.")
+                return cleaned_data
+            # Allow retry only for the same invitation reservation.
+            if invitation.used_by_id and invitation.used_by_id != existing_user.id:
+                raise forms.ValidationError(self.error_messages["invalid_invitation"])
+            if invitation.used_by_id is None and profile_for_ean is None:
+                self.add_error(
+                    "email",
+                    "Cette adresse e-mail est deja utilisee pour une activation en attente.",
+                )
+                return cleaned_data
+        elif invitation.used_by_id:
+            # Invitation already reserved by another account.
+            raise forms.ValidationError(self.error_messages["invalid_invitation"])
+
         invitation.reset_failed_attempts()
+        cleaned_data["email"] = email
         cleaned_data["secret_code"] = secret_code
         cleaned_data["meter_point"] = meter_point
         cleaned_data["invitation"] = invitation
+        cleaned_data["existing_user"] = existing_user
         return cleaned_data
 
 
@@ -175,6 +203,7 @@ class ElectrucAuthenticationForm(BootstrapFormMixin, AuthenticationForm):
 
     def __init__(self, request=None, *args, **kwargs):
         super().__init__(request, *args, **kwargs)
+        self.fields["username"].label = "Nom d'utilisateur (adresse mail)"
         self.apply_bootstrap()
 
 

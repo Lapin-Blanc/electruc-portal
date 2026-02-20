@@ -15,7 +15,7 @@
     {% csrf_token %}
     {{ form.as_p }}
     <p class="small text-muted mb-2">
-      Formats acceptÃ©s : PDF, PNG, JPG/JPEG, DOC, DOCX â€” taille max 5 Mo.
+      Formats acceptés : PDF, PNG, JPG/JPEG, DOC, DOCX - taille max 5 Mo.
     </p>
     <button type="submit" class="btn btn-primary">Envoyer le document</button>
   </form>
@@ -41,12 +41,12 @@
               {% elif item.status == "active" %}
                 <span class="badge text-bg-success">Active</span>
               {% else %}
-                <span class="badge text-bg-danger">RefusÃ©e</span>
+                <span class="badge text-bg-danger">Refusée</span>
               {% endif %}
             </td>
             <td>
               <a class="btn btn-outline-secondary btn-sm" href="{% url 'domiciliation_document_download' item.id %}">
-                TÃ©lÃ©charger
+                Télécharger
               </a>
             </td>
           </tr>

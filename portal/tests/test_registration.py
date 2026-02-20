@@ -104,3 +104,67 @@ class RegistrationFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Invitation invalide, expiree ou deja utilisee.")
         self.assertFalse(get_user_model().objects.filter(username="refus@example.com").exists())
+
+    def test_can_resend_activation_for_same_inactive_account(self):
+        first_response = self.client.post(
+            reverse("registration_start"),
+            {
+                "ean": self.meter_point.ean,
+                "secret_code": self.secret_code,
+                "email": "renvoi@example.com",
+                "password1": "SecuritePass123!",
+                "password2": "SecuritePass123!",
+            },
+        )
+        self.assertRedirects(first_response, reverse("registration_sent"))
+        user = get_user_model().objects.get(username="renvoi@example.com")
+        self.assertFalse(user.is_active)
+        self.assertEqual(len(mail.outbox), 1)
+
+        second_response = self.client.post(
+            reverse("registration_start"),
+            {
+                "ean": self.meter_point.ean,
+                "secret_code": self.secret_code,
+                "email": "renvoi@example.com",
+                "password1": "SecuritePass123!",
+                "password2": "SecuritePass123!",
+            },
+        )
+        self.assertRedirects(second_response, reverse("registration_sent"))
+        self.assertEqual(get_user_model().objects.filter(username="renvoi@example.com").count(), 1)
+        self.assertEqual(len(mail.outbox), 2)
+
+    def test_existing_profile_same_ean_does_not_raise_integrity_error(self):
+        User = get_user_model()
+        pending_user = User.objects.create_user(
+            username="old.pending@example.com",
+            email="old.pending@example.com",
+            password="SecuritePass123!",
+            is_active=False,
+        )
+        # Existing profile linked to the same EAN as invitation.
+        from portal.models import CustomerProfile
+
+        CustomerProfile.objects.create(
+            user=pending_user,
+            customer_ref="CLI-PENDING-0001",
+            ean=self.meter_point.ean,
+            supply_address_street="Rue de Test",
+            supply_address_number="1",
+            supply_address_postal_code="1000",
+            supply_address_city="Bruxelles",
+        )
+
+        response = self.client.post(
+            reverse("registration_start"),
+            {
+                "ean": self.meter_point.ean,
+                "secret_code": self.secret_code,
+                "email": "old.pending@example.com",
+                "password1": "SecuritePass123!",
+                "password2": "SecuritePass123!",
+            },
+        )
+        self.assertRedirects(response, reverse("registration_sent"))
+        self.assertEqual(User.objects.filter(username="old.pending@example.com").count(), 1)

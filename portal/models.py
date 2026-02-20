@@ -1,6 +1,7 @@
 ﻿"""Business models (simple and pedagogical)."""
 import secrets
 import string
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
@@ -77,16 +78,53 @@ class Contract(models.Model):
         (STATUS_CLOSED, "Clôturé"),
     ]
 
+    TARIFF_FIXED = "fixed"
+    TARIFF_VARIABLE = "variable"
+    TARIFF_CHOICES = [
+        (TARIFF_FIXED, "Fixe"),
+        (TARIFF_VARIABLE, "Variable"),
+    ]
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     meter_point = models.ForeignKey(MeterPoint, on_delete=models.SET_NULL, null=True, blank=True)
     reference = models.CharField(max_length=50, unique=True)
     start_date = models.DateField()
     plan_name = models.CharField(max_length=100)
+    tariff_type = models.CharField(max_length=20, choices=TARIFF_CHOICES, default=TARIFF_FIXED)
+    standing_charge_eur = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("12.00"))
+    fixed_unit_price_eur_kwh = models.DecimalField(max_digits=6, decimal_places=4, default=Decimal("0.2850"))
     supply_address = models.CharField(max_length=200)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
 
     def __str__(self) -> str:
         return f"{self.reference}"
+
+    def unit_price_for_date(self, target_date) -> Decimal:
+        if self.tariff_type == self.TARIFF_FIXED:
+            return Decimal(self.fixed_unit_price_eur_kwh)
+
+        monthly_prices = {
+            1: Decimal("0.3450"),
+            2: Decimal("0.3380"),
+            3: Decimal("0.3220"),
+            4: Decimal("0.2980"),
+            5: Decimal("0.2790"),
+            6: Decimal("0.2650"),
+            7: Decimal("0.2580"),
+            8: Decimal("0.2620"),
+            9: Decimal("0.2770"),
+            10: Decimal("0.3010"),
+            11: Decimal("0.3280"),
+            12: Decimal("0.3420"),
+        }
+        return monthly_prices.get(target_date.month, Decimal("0.3000"))
+
+    def estimate_invoice_amount(self, consumption_kwh: int, period_end):
+        unit_price = self.unit_price_for_date(period_end)
+        standing_charge = Decimal(self.standing_charge_eur)
+        energy_amount = (Decimal(consumption_kwh) * unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        total = (standing_charge + energy_amount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return total, unit_price, standing_charge
 
 
 class Invitation(models.Model):
@@ -179,6 +217,9 @@ class Invoice(models.Model):
     period_start = models.DateField()
     period_end = models.DateField()
     issue_date = models.DateField()
+    consumption_kwh = models.PositiveIntegerField(default=0)
+    unit_price_eur_kwh = models.DecimalField(max_digits=6, decimal_places=4, default=Decimal("0.0000"))
+    standing_charge_eur = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
     amount_eur = models.DecimalField(max_digits=8, decimal_places=2)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DUE)
     pdf_file = models.FileField(
